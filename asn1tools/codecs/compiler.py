@@ -443,6 +443,9 @@ class Compiler(object):
 
                 resolved_member = self.resolve_type_descriptor(member,
                                                                module_name)
+                
+                if 'element' in resolved_member:
+                    resolved_member = resolved_member['element']
 
                 if resolved_member['type'] == 'BIT STRING':
                     self.pre_process_default_value_bit_string(member,
@@ -503,7 +506,23 @@ class Compiler(object):
             # Already pre-processed.
             return
 
-        if default.startswith('0b'):
+        if isinstance(default, list):
+            vals = []
+            for val in default:
+                if isinstance(val, bytes):
+                    return
+                if val.startswith('0b'):
+                    val = val[2:]
+                    if len(val) % 8 != 0:
+                        val += '0' * (-len(val) % 8)
+                    vals.append(binascii.unhexlify(hex(int('11111111' + val, 2))[4:]))
+                elif val.startswith('0x'):
+                    val = val[2:]
+                    if len(val) % 2 == 1:
+                        val += '0'
+                    vals.append(binascii.unhexlify(val))
+            member['default'] = vals
+        elif default.startswith('0b'):
             default = default[2:]
             if len(default) % 8 != 0:
                 default += '0' * (-len(default) % 8)

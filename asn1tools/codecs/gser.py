@@ -16,6 +16,7 @@ from . import format_or
 from . import utc_time_from_datetime
 from . import generalized_time_from_datetime
 from .compiler import enum_values_as_dict
+from ..parser import parse_string
 
 
 class Type(BaseType):
@@ -446,7 +447,8 @@ class CompiledType(compiler.CompiledType):
         return encoded.encode('utf-8')
 
     def decode(self, data):
-        raise NotImplementedError('GSER decoding is not implemented.')
+        # raise NotImplementedError('GSER decoding is not implemented.')
+        return parse_string(data, True)
 
 
 class Compiler(compiler.Compiler):

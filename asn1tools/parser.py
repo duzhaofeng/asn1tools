@@ -645,6 +645,10 @@ def convert_value(tokens, type_=None):
                 value.append((value_tokens[0], int(value_tokens[1])))
             else:
                 value.append(convert_number(value_tokens[0]))
+    elif type_ == 'SEQUENCE OF':
+        value = []
+        for value_tokens in tokens:
+             value.append(convert_value(value_tokens))
     elif type_ == 'BOOLEAN':
         value = (tokens[0] == 'TRUE')
     elif tokens[0] == 'BitStringValue':
@@ -848,7 +852,7 @@ def convert_specification(_s, _l, tokens):
     return merge_dicts(tokens)
 
 
-def create_grammar():
+def create_grammar(gser = False):
     """Return the ASN.1 grammar as Pyparsing objects.
 
     """
@@ -995,6 +999,7 @@ def create_grammar():
     builtin_value = Forward()
     named_value = Forward()
     sequence_value = Forward()
+    sequence_of_value = Forward()
     signed_number = Forward()
     name_and_number_form = Forward()
     number_form = Forward().setName('numberForm')
@@ -1427,7 +1432,7 @@ def create_grammar():
                    + Group(alternative_type_lists)
                    - right_brace)
     choice_type.setName('CHOICE')
-    choice_value = (identifier + colon + value)
+    choice_value = (identifier + colon - value)
 
     # X.680: 27. Notation for the set-of types
     # set_of_value = NoMatch()
@@ -1450,7 +1455,11 @@ def create_grammar():
     set_type.setName('SET')
 
     # X.680: 25. Notation for the sequence-of types
-    sequence_of_value = NoMatch()
+    # sequence_of_value = NoMatch()
+    sequence_of_value_list = delimitedList(value)
+    sequence_of_value <<= (Suppress(left_brace)
+                        + Optional(sequence_of_value_list)
+                        + Suppress(right_brace))
     sequence_of_type = (SEQUENCE
                         + Group(Optional(Group(size_constraint) | constraint))
                         + OF
@@ -1466,7 +1475,7 @@ def create_grammar():
                         + right_brace)
     component_type = Group(named_type
                            + Group(Optional(OPTIONAL
-                                            | (DEFAULT + value)))
+                                            | (DEFAULT - value)))
                            | (COMPONENTS_OF - type_))
     version_number <<= Optional(number + Suppress(colon))
     extension_addition_group = Group(left_version_brackets
@@ -1770,7 +1779,7 @@ def create_grammar():
     actual_parameter_list.setParseAction(convert_actual_parameter_list)
     parameter_list.setParseAction(convert_parameter_list)
 
-    return specification
+    return specification if not gser else assignment_list
 
 
 def ignore_comments(string):
@@ -1810,7 +1819,8 @@ def ignore_comments(string):
 
                 if multi_line_comment_depth == 0:
                     offset += 2
-                    chunks.append(' ' * (offset - start_offset))
+                    chunks.append(re.sub(r'.', ' ', string[start_offset:offset]))
+                    # chunks.append(' ' * (offset - start_offset))
                     non_comment_offset = offset
         elif kind == '--':
             in_single_line_comment = True
@@ -1838,7 +1848,7 @@ def ignore_comments(string):
     return ''.join(chunks)
 
 
-def parse_string(string):
+def parse_string(string, gser = False):
     """Parse given ASN.1 specification string and return a dictionary of
     its contents.
 
@@ -1850,7 +1860,7 @@ def parse_string(string):
 
     """
 
-    grammar = create_grammar()
+    grammar = create_grammar(gser)
 
     try:
         string = ignore_comments(string)
