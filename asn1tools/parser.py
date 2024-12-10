@@ -1397,7 +1397,8 @@ def create_grammar(gser = False):
                                | (Suppress(left_brace)
                                   + defined_value
                                   + obj_id_components_list
-                                  + Suppress(right_brace)))
+                                  + Suppress(right_brace))
+                               | Combine(Word(nums) + (dot + Word(nums))[2, ...]))
 
     object_identifier_type = (OBJECT_IDENTIFIER
                               + Optional(left_parenthesis
@@ -1601,10 +1602,10 @@ def create_grammar(gser = False):
                        | enumerated_value
                        # | external_value
                        # | instance_of_value
+                       | object_identifier_value
                        | real_value
                        | integer_value
                        | null_value
-                       | object_identifier_value
                        # | octet_string_value
                        | sequence_of_value
                        # | set_value
@@ -1747,7 +1748,7 @@ def create_grammar(gser = False):
     module_body.setParseAction(convert_module_body)
     specification.setParseAction(convert_specification)
     module_definition.setParseAction(convert_module_definition)
-    assignment_list.setParseAction(convert_assignment_list)
+    # assignment_list.setParseAction(convert_assignment_list)
     imports.setParseAction(convert_imports)
     parameterized_object_set_assignment.setParseAction(
         convert_parameterized_object_set_assignment)
@@ -1757,8 +1758,8 @@ def create_grammar(gser = False):
         convert_parameterized_object_class_assignment)
     parameterized_type_assignment.setParseAction(
         convert_parameterized_type_assignment)
-    parameterized_value_assignment.setParseAction(
-        convert_parameterized_value_assignment)
+    # parameterized_value_assignment.setParseAction(
+    #     convert_parameterized_value_assignment)
     sequence_type.setParseAction(convert_sequence_type)
     sequence_of_type.setParseAction(convert_sequence_of_type)
     set_type.setParseAction(convert_set_type)
@@ -1779,8 +1780,20 @@ def create_grammar(gser = False):
     actual_parameter_list.setParseAction(convert_actual_parameter_list)
     parameter_list.setParseAction(convert_parameter_list)
 
+    sequence_value.setParseAction(convert_sequence_value)
+    sequence_of_value.setParseAction(convert_sequence_of_value)
+    real_value.setParseAction(convert_real_value)
+
     return specification if not gser else assignment_list
 
+def convert_sequence_value(_s, _l, tokens):
+    return tokens
+
+def convert_sequence_of_value(_s, _l, tokens):
+    return tokens
+
+def convert_real_value(_s, _l, tokens):
+    return tokens
 
 def ignore_comments(string):
     """Ignore comments in given string by replacing them with spaces. This

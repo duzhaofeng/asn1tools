@@ -429,7 +429,7 @@ class CompiledType(compiler.CompiledType):
         self._value_name = type_name.lower()
         self._value_type = type_name
 
-    def encode(self, data, indent=None):
+    def encode(self, data, indent=None, value_name=None):
         try:
             if indent is None:
                 encoded = self._type.encode(data, ' ', 0)
@@ -440,7 +440,7 @@ class CompiledType(compiler.CompiledType):
             e.add_location(self._type)
             raise e
 
-        encoded = u'{} {} ::= {}'.format(self._value_name,
+        encoded = u'{} {} ::= {}'.format(self._value_name if not value_name else value_name,
                                          self._value_type,
                                          encoded.lstrip(' '))
 
