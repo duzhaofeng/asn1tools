@@ -651,6 +651,24 @@ def convert_value(tokens, type_=None):
              value.append(convert_value(value_tokens))
     elif type_ == 'BOOLEAN':
         value = (tokens[0] == 'TRUE')
+    elif isinstance(tokens, ParseResults):
+        num = len(tokens)
+        if num == 1:
+            if isinstance(tokens[0], (ParseResults, Tokens)):
+                return convert_value(tokens[0])
+            else:
+                return tokens[0]
+        elif num == 3 and tokens[1] == ':':
+            return { tokens[0] : convert_value(tokens[2]) }
+        elif num > 2 and num % 2 == 0 and tokens[0] == '{' and tokens[-1] == '}':
+            value = {}
+            i = 1
+            while i < num - 2:
+                value[tokens[i]] = convert_value(tokens[i + 1])
+                i += 2
+            return value
+        else:
+            return [convert_value(token) for token in tokens]
     elif tokens[0] == 'BitStringValue':
         value = convert_bit_string_value(tokens[0])
     elif isinstance(tokens[0], str):
@@ -1748,7 +1766,7 @@ def create_grammar(gser = False):
     module_body.setParseAction(convert_module_body)
     specification.setParseAction(convert_specification)
     module_definition.setParseAction(convert_module_definition)
-    # assignment_list.setParseAction(convert_assignment_list)
+    assignment_list.setParseAction(convert_assignment_list)
     imports.setParseAction(convert_imports)
     parameterized_object_set_assignment.setParseAction(
         convert_parameterized_object_set_assignment)
@@ -1758,8 +1776,8 @@ def create_grammar(gser = False):
         convert_parameterized_object_class_assignment)
     parameterized_type_assignment.setParseAction(
         convert_parameterized_type_assignment)
-    # parameterized_value_assignment.setParseAction(
-    #     convert_parameterized_value_assignment)
+    parameterized_value_assignment.setParseAction(
+        convert_parameterized_value_assignment)
     sequence_type.setParseAction(convert_sequence_type)
     sequence_of_type.setParseAction(convert_sequence_of_type)
     set_type.setParseAction(convert_set_type)
@@ -1780,20 +1798,8 @@ def create_grammar(gser = False):
     actual_parameter_list.setParseAction(convert_actual_parameter_list)
     parameter_list.setParseAction(convert_parameter_list)
 
-    sequence_value.setParseAction(convert_sequence_value)
-    sequence_of_value.setParseAction(convert_sequence_of_value)
-    real_value.setParseAction(convert_real_value)
-
     return specification if not gser else assignment_list
 
-def convert_sequence_value(_s, _l, tokens):
-    return tokens
-
-def convert_sequence_of_value(_s, _l, tokens):
-    return tokens
-
-def convert_real_value(_s, _l, tokens):
-    return tokens
 
 def ignore_comments(string):
     """Ignore comments in given string by replacing them with spaces. This
