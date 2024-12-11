@@ -5,6 +5,7 @@
 import logging
 import re
 import sys
+import binascii
 
 from pyparsing import Literal
 from pyparsing import Keyword
@@ -653,13 +654,31 @@ def convert_value(tokens, type_=None):
         value = (tokens[0] == 'TRUE')
     elif isinstance(tokens, ParseResults):
         num = len(tokens)
-        if num == 1:
-            if isinstance(tokens[0], (ParseResults, Tokens)):
+        if num == 1 and not isinstance(tokens[0], ParseResults):
+            if isinstance(tokens[0], Tokens):
+                if tokens[0] == 'BitStringValue':
+                    value = tokens[0][0]
+                    if isinstance(value, Tokens) and value == 'IdentifierList' and len(value) == 0:
+                        return []
+                    elif not isinstance(value, str):
+                        pass
+                    elif value.startswith('0b'):
+                        value = value[2:]
+                        if len(value) % 8 != 0:
+                            value += '0' * (-len(value) % 8)
+                        return binascii.unhexlify(hex(int('11111111' + value, 2))[4:])
+                    elif value.startswith('0x'):
+                        value = value[2:]
+                        if len(value) % 2 == 1:
+                            value += '0'
+                        return binascii.unhexlify(value)
                 return convert_value(tokens[0])
+            elif isinstance(tokens[0], dict) and tokens[0].get('type') == 'NULL':
+                return None
             else:
                 return tokens[0]
         elif num == 3 and tokens[1] == ':':
-            return { tokens[0] : convert_value(tokens[2]) }
+            return (tokens[0], convert_value(tokens[2]))
         elif num > 2 and num % 2 == 0 and tokens[0] == '{' and tokens[-1] == '}':
             value = {}
             i = 1
@@ -1797,8 +1816,17 @@ def create_grammar(gser = False):
     any_defined_by_type.setParseAction(convert_any_defined_by_type)
     actual_parameter_list.setParseAction(convert_actual_parameter_list)
     parameter_list.setParseAction(convert_parameter_list)
+    object_identifier_value.setParseAction(convert_object_identifier_value)
+    relative_oid_value.setParseAction(convert_object_identifier_value)
 
-    return specification if not gser else assignment_list
+    return specification if not gser else (assignment_list + StringEnd())
+
+
+def convert_object_identifier_value(_s, _l, tokens):
+    if len(tokens) > 1:
+        value = '.'.join([str(v[0]) for v in tokens])
+        tokens = ParseResults([value])
+    return tokens
 
 
 def ignore_comments(string):
@@ -1891,7 +1919,7 @@ def parse_string(string, gser = False):
             e.markInputline(),
             e.msg))
 
-    return tokens[0]
+    return tokens[0] if not gser else tokens[0]['values']
 
 
 def parse_files(filenames, encoding='utf-8'):
