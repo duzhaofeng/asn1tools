@@ -13,7 +13,9 @@ from . import EncodeError
 from . import DecodeError
 from . import compiler
 from . import format_or
+from . import utc_time_to_datetime
 from . import utc_time_from_datetime
+from . import generalized_time_to_datetime
 from . import generalized_time_from_datetime
 from .compiler import enum_values_as_dict
 from ..parser import parse_string
@@ -27,6 +29,17 @@ class Type(BaseType):
     def set_size_range(self, minimum, maximum, has_extension_marker):
         pass
 
+class StringType(Type):
+
+    def __init__(self, name):
+        super(StringType, self).__init__(name,
+                                         self.__class__.__name__)
+
+    def encode(self, data):
+        return u'"{}"'.format(data)
+
+    def decode(self, data):
+        return data
 
 class MembersType(Type):
 
@@ -68,6 +81,27 @@ class MembersType(Type):
 
         return separator.join(['{' + encoded_members, '}'])
 
+    def decode(self, data):
+        values = {}
+
+        for member in self.members:
+            name = member.name
+
+            if name in data:
+                try:
+                    value = member.decode(data[name])
+                except ErrorWithLocation as e:
+                    # Add member location
+                    e.add_location(member)
+                    raise e
+                values[name] = value
+            elif member.optional:
+                pass
+            elif member.has_default():
+                values[name] = member.get_default()
+
+        return values
+
     def __repr__(self):
         return '{}({}, [{}])'.format(
             self.__class__.__name__,
@@ -97,6 +131,15 @@ class ArrayType(Type):
 
         return separator.join(['{' + encoded_elements, '}'])
 
+    def decode(self, data):
+        values = []
+
+        for element_data in data:
+            value = self.element_type.decode(element_data)
+            values.append(value)
+
+        return values
+
     def __repr__(self):
         return '{}({}, {})'.format(self.__class__.__name__,
                                    self.name,
@@ -111,6 +154,9 @@ class Boolean(Type):
     def encode(self, data, _separator, _indent):
         return 'TRUE' if data else 'FALSE'
 
+    def decode(self, data):
+        return bool(data)
+
 
 class Integer(Type):
 
@@ -119,6 +165,9 @@ class Integer(Type):
 
     def encode(self, data, _separator, _indent):
         return str(data)
+
+    def decode(self, data):
+        return int(data)
 
 
 class Real(Type):
@@ -140,6 +189,12 @@ class Real(Type):
 
         return data
 
+    def decode(self, data):
+        try:
+            return float(data)
+        except ValueError:
+            raise DecodeError("Cannot decode real number {}.".format(data))
+
 
 class Null(Type):
 
@@ -148,6 +203,9 @@ class Null(Type):
 
     def encode(self, _data, _separator, _indent):
         return 'NULL'
+
+    def decode(self, data):
+        return None
 
 
 class BitString(Type):
@@ -161,6 +219,9 @@ class BitString(Type):
 
         return "'{}'B".format(bin(encoded)[10:10 + data[1]]).upper()
 
+    def decode(self, data):
+        return data
+
 
 class OctetString(Type):
 
@@ -170,6 +231,9 @@ class OctetString(Type):
     def encode(self, data, _separator, _indent):
         return "'{}'H".format(format_bytes(data)).upper()
 
+    def decode(self, data):
+        return data
+
 
 class ObjectIdentifier(Type):
 
@@ -177,6 +241,9 @@ class ObjectIdentifier(Type):
         super(ObjectIdentifier, self).__init__(name, 'OBJECT IDENTIFIER')
 
     def encode(self, data, _separator, _indent):
+        return data
+
+    def decode(self, data):
         return data
 
 
@@ -192,8 +259,20 @@ class Enumerated(Type):
                 v: v for v in enum_values_as_dict(values).values()
             }
 
+    def format_values(self):
+        return format_or(sorted(list(self.data_to_value)))
+
     def encode(self, data, _separator, _indent):
         return self.data_to_value[data]
+
+    def decode(self, data):
+        if data in self.data_to_value:
+            return self.data_to_value[data]
+        else:
+            raise DecodeError(
+                "Expected enumeration value {}, but got '{}'.".format(
+                    self.format_values(),
+                    data))
 
 
 class Sequence(MembersType):
@@ -250,6 +329,23 @@ class Choice(Type):
             raise e
 
         return u'{} : {}'.format(data[0], encoded)
+    
+    def decode(self, data):
+        name, value = list(data.items())[0]
+
+        if name in self.name_to_member:
+            member = self.name_to_member[name]
+        else:
+            raise DecodeError(
+                "Expected choice {}, but got '{}'.".format(
+                    self.format_names(),
+                    name))
+        try:
+            return (name, member.decode(value))
+        except ErrorWithLocation as e:
+            # Add member location
+            e.add_location(member)
+            raise e
 
     def __repr__(self):
         return 'Choice({}, [{}])'.format(
@@ -257,143 +353,93 @@ class Choice(Type):
             ', '.join([repr(member) for member in self.members]))
 
 
-class UTF8String(Type):
-
-    def __init__(self, name):
-        super(UTF8String, self).__init__(name, 'UTF8String')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class UTF8String(StringType):
+    pass
 
 
-class NumericString(Type):
-
-    def __init__(self, name):
-        super(NumericString, self).__init__(name, 'NumericString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class NumericString(StringType):
+    pass
 
 
-class PrintableString(Type):
-
-    def __init__(self, name):
-        super(PrintableString, self).__init__(name, 'PrintableString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class PrintableString(StringType):
+    pass
 
 
-class IA5String(Type):
-
-    def __init__(self, name):
-        super(IA5String, self).__init__(name, 'IA5String')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class IA5String(StringType):
+    pass
 
 
-class VisibleString(Type):
-
-    def __init__(self, name):
-        super(VisibleString, self).__init__(name, 'VisibleString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class VisibleString(StringType):
+    pass
 
 
-class GeneralString(Type):
-
-    def __init__(self, name):
-        super(GeneralString, self).__init__(name, 'GeneralString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class GeneralString(StringType):
+    pass
 
 
-class BMPString(Type):
-
-    def __init__(self, name):
-        super(BMPString, self).__init__(name, 'BMPString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class BMPString(StringType):
+    pass
 
 
-class GraphicString(Type):
-
-    def __init__(self, name):
-        super(GraphicString, self).__init__(name, 'GraphicString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class GraphicString(StringType):
+    pass
 
 
-class UniversalString(Type):
-
-    def __init__(self, name):
-        super(UniversalString, self).__init__(name, 'UniversalString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class UniversalString(StringType):
+    pass
 
 
-class TeletexString(Type):
-
-    def __init__(self, name):
-        super(TeletexString, self).__init__(name, 'TeletexString')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(data)
+class TeletexString(StringType):
+    pass
 
 
 class ObjectDescriptor(GraphicString):
     pass
 
 
-class UTCTime(Type):
-
-    def __init__(self, name):
-        super(UTCTime, self).__init__(name, 'UTCTime')
+class UTCTime(StringType):
 
     def encode(self, data, _separator, _indent):
         return u'"{}"'.format(utc_time_from_datetime(data))
 
+    def decode(self, data):
+        return utc_time_to_datetime(data)
 
-class GeneralizedTime(Type):
 
-    def __init__(self, name):
-        super(GeneralizedTime, self).__init__(name, 'GeneralizedTime')
+class GeneralizedTime(StringType):
 
     def encode(self, data, _separator, _indent):
         return u'"{}"'.format(generalized_time_from_datetime(data))
 
-
-class Date(Type):
-
-    def __init__(self, name):
-        super(Date, self).__init__(name, 'DATE')
-
-    def encode(self, data, _separator, _indent):
-        return u'"{}"'.format(str(data))
+    def decode(self, data):
+        return generalized_time_to_datetime(data)
 
 
-class TimeOfDay(Type):
-
-    def __init__(self, name):
-        super(TimeOfDay, self).__init__(name, 'TIME-OF-DAY')
+class Date(StringType):
 
     def encode(self, data, _separator, _indent):
         return u'"{}"'.format(str(data))
 
+    def decode(self, data):
+        return datetime.date(*time.strptime(data, '%Y-%m-%d')[:3])
 
-class DateTime(Type):
 
-    def __init__(self, name):
-        super(DateTime, self).__init__(name, 'DATE-TIME')
+class TimeOfDay(StringType):
+
+    def encode(self, data, _separator, _indent):
+        return u'"{}"'.format(str(data))
+
+    def decode(self, data):
+        return datetime.time(*time.strptime(data, '%H:%M:%S')[3:6])
+
+
+class DateTime(StringType):
 
     def encode(self, data, _separator, _indent):
         return u'"{}"'.format(str(data).replace(' ', 'T'))
+
+    def decode(self, data):
+        return datetime.datetime(*time.strptime(data, '%Y-%m-%dT%H:%M:%S')[:6])
 
 
 class Any(Type):
@@ -420,6 +466,9 @@ class Recursive(compiler.Recursive, Type):
 
     def encode(self, data, separator, indent):
         return self.inner.encode(data, separator, indent)
+
+    def decode(self, data):
+        return self._inner.decode(data)
 
 
 class CompiledType(compiler.CompiledType):
