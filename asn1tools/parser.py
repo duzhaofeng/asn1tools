@@ -678,7 +678,7 @@ def convert_value(tokens, type_=None):
             else:
                 return tokens[0]
         elif num == 3 and tokens[1] == ':':
-            return (tokens[0], convert_value(tokens[2]))
+            return {tokens[0]:convert_value(tokens[2])}
         elif num > 2 and num % 2 == 0 and tokens[0] == '{' and tokens[-1] == '}':
             value = {}
             i = 1
@@ -1816,17 +1816,8 @@ def create_grammar(gser = False):
     any_defined_by_type.setParseAction(convert_any_defined_by_type)
     actual_parameter_list.setParseAction(convert_actual_parameter_list)
     parameter_list.setParseAction(convert_parameter_list)
-    object_identifier_value.setParseAction(convert_object_identifier_value)
-    relative_oid_value.setParseAction(convert_object_identifier_value)
 
     return specification if not gser else (assignment_list + StringEnd())
-
-
-def convert_object_identifier_value(_s, _l, tokens):
-    if len(tokens) > 1:
-        value = '.'.join([str(v[0]) for v in tokens])
-        tokens = ParseResults([value])
-    return tokens
 
 
 def ignore_comments(string):

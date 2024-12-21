@@ -35,7 +35,7 @@ class StringType(Type):
         super(StringType, self).__init__(name,
                                          self.__class__.__name__)
 
-    def encode(self, data):
+    def encode(self, data, _separator, _indent):
         return u'"{}"'.format(data)
 
     def decode(self, data):
@@ -89,7 +89,7 @@ class MembersType(Type):
 
             if name in data:
                 try:
-                    value = member.decode(data[name])
+                    value = member.decode(data[name] if not isinstance(data, list) else data[data.index(name) + 1])
                 except ErrorWithLocation as e:
                     # Add member location
                     e.add_location(member)
@@ -160,13 +160,19 @@ class Boolean(Type):
 
 class Integer(Type):
 
-    def __init__(self, name):
+    def __init__(self, name, named_numbers):
         super(Integer, self).__init__(name, 'INTEGER')
+        self.named_numbers = named_numbers
+        self.number_to_name = {v: k for k, v in self.named_numbers.items()}
 
     def encode(self, data, _separator, _indent):
+        if data in self.number_to_name:
+            return self.number_to_name[data]
         return str(data)
 
     def decode(self, data):
+        if data in self.named_numbers:
+            return self.named_numbers[data]
         return int(data)
 
 
@@ -244,6 +250,8 @@ class ObjectIdentifier(Type):
         return data
 
     def decode(self, data):
+        if len(data) > 1:
+            data = '.'.join([v for v in data])
         return data
 
 
@@ -497,7 +505,15 @@ class CompiledType(compiler.CompiledType):
 
     def decode(self, data):
         # raise NotImplementedError('GSER decoding is not implemented.')
-        return parse_string(data, True)
+        values =  parse_string(data, True)
+        for var_name, var in values.items():
+            try:
+                var['value'] = self._type.decode(var['value'])
+            except ErrorWithLocation as e:
+                # Add member location
+                e.add_location(self._type)
+                raise e
+        return values
 
 
 class Compiler(compiler.Compiler):
@@ -539,7 +555,7 @@ class Compiler(compiler.Compiler):
                 module_name)
             compiled = Choice(name, members)
         elif type_name == 'INTEGER':
-            compiled = Integer(name)
+            compiled = Integer(name, type_descriptor.get('named-numbers', {}))
         elif type_name == 'REAL':
             compiled = Real(name)
         elif type_name == 'ENUMERATED':
