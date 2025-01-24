@@ -250,7 +250,7 @@ class ObjectIdentifier(Type):
         return data
 
     def decode(self, data):
-        if len(data) > 1:
+        if isinstance(data, list) and len(data) > 1:
             data = '.'.join([v for v in data])
         return data
 
