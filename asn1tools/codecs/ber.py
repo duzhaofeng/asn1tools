@@ -514,6 +514,9 @@ class Type(BaseType):
     def set_size_range(self, minimum, maximum, has_extension_marker):
         pass
 
+    def set_decode_options(self, decode_offset):
+        self.decode_offset = decode_offset
+
 
 class StandardDecodeMixin(object):
     """
@@ -548,7 +551,8 @@ class StandardDecodeMixin(object):
         # Decode length
         length, offset = decode_length(data, offset, enforce_definite=not self.indefinite_allowed)
 
-        return self.decode_content(data, offset, length)
+        content = self.decode_content(data, offset, length)
+        return content if not self.decode_offset else (content[0], offset, length), content[1]
 
     def decode_content(self, data, offset, length):
         """
@@ -632,9 +636,10 @@ class PrimitiveOrConstructedType(Type):
 
         if is_primitive:
             end_offset = offset + length
-            return self.decode_primitive_contents(data, offset, length), end_offset
+            content = self.decode_primitive_contents(data, offset, length), end_offset
         else:
-            return self.decode_constructed_contents(data, offset, length)
+            content = self.decode_constructed_contents(data, offset, length)
+        return content if not self.decode_offset else (content[0], offset, length), content[1]
 
     def decode_constructed_contents(self, data, offset, length):
         segments = []
@@ -1408,7 +1413,7 @@ class Any(Type):
         length, offset = decode_length(data, offset)
         end_offset = offset + length
 
-        return data[start:end_offset], end_offset
+        return data[start:end_offset], end_offset if not self.decode_offset else (data[start:end_offset], start, end_offset - start), end_offset
 
 
 class AnyDefinedBy(Type):
@@ -1453,7 +1458,7 @@ class AnyDefinedBy(Type):
             length, offset = decode_length(data, offset)
             end_offset = offset + length
 
-            return data[start:end_offset], end_offset
+            return data[start:end_offset], end_offset if not self.decode_offset else (data[start:end_offset], start, end_offset - start), end_offset
 
 
 class ExplicitTag(StandardEncodeMixin, StandardDecodeMixin, Type):
@@ -1573,6 +1578,10 @@ def get_tag_no_encoding(member):
 
 
 class Compiler(compiler.Compiler):
+
+    def __init__(self, specification, numeric_enums=False, decode_offset=False, **kwargs):
+        super(Compiler, self).__init__(specification, numeric_enums)
+        self._decode_offset = decode_offset
 
     def process_type(self, type_name, type_descriptor, module_name):
         compiled_type = self.compile_type(type_name,
@@ -1720,6 +1729,7 @@ class Compiler(compiler.Compiler):
 
             compiled.set_tag(tag['number'], flags)
 
+        compiled.set_decode_options(self._decode_offset)
         return compiled
 
     def compile_members(self,
@@ -1769,8 +1779,8 @@ class Compiler(compiler.Compiler):
             additions.append(compiled_member)
 
 
-def compile_dict(specification, numeric_enums=False):
-    return Compiler(specification, numeric_enums).process()
+def compile_dict(specification, numeric_enums=False, **kwargs):
+    return Compiler(specification, numeric_enums, **kwargs).process()
 
 
 def decode_full_length(data):

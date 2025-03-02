@@ -275,7 +275,8 @@ def _compile_files_cache(filenames,
 def compile_dict(specification,
                  codec='ber',
                  any_defined_by_choices=None,
-                 numeric_enums=False):
+                 numeric_enums=False,
+                 **kwargs):
     """Compile given ASN.1 specification dictionary and return a
     :class:`~asn1tools.compiler.Specification` object that can be used
     to encode and decode data structures with given codec
@@ -310,7 +311,8 @@ def compile_dict(specification,
                                         any_defined_by_choices)
 
     return Specification(codec.compile_dict(specification,
-                                            numeric_enums),
+                                            numeric_enums,
+                                            **kwargs),
                          codec.decode_full_length,
                          type_checker.compile_dict(specification,
                                                    numeric_enums),
@@ -321,7 +323,8 @@ def compile_dict(specification,
 def compile_string(string,
                    codec='ber',
                    any_defined_by_choices=None,
-                   numeric_enums=False):
+                   numeric_enums=False,
+                   **kwargs):
     """Compile given ASN.1 specification string and return a
     :class:`~asn1tools.compiler.Specification` object that can be used
     to encode and decode data structures with given codec
@@ -339,7 +342,8 @@ def compile_string(string,
     return compile_dict(parse_string(string),
                         codec,
                         any_defined_by_choices,
-                        numeric_enums)
+                        numeric_enums,
+                        **kwargs)
 
 
 def compile_files(filenames,

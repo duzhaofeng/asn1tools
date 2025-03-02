@@ -1476,7 +1476,7 @@ class Compiler(compiler.Compiler):
             additions.append(compiled_member)
 
 
-def compile_dict(specification, numeric_enums=False):
+def compile_dict(specification, numeric_enums=False, **kwargs):
     return Compiler(specification, numeric_enums).process()
 
 

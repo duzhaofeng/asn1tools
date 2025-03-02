@@ -787,7 +787,7 @@ class Compiler(compiler.Compiler):
         return compiled
 
 
-def compile_dict(specification, numeric_enums):
+def compile_dict(specification, numeric_enums, **kwargs):
     return Compiler(specification, numeric_enums).process()
 
 
