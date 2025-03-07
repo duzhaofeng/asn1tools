@@ -552,7 +552,7 @@ class StandardDecodeMixin(object):
         length, offset = decode_length(data, offset, enforce_definite=not self.indefinite_allowed)
 
         content = self.decode_content(data, offset, length)
-        return content if not self.decode_offset else (content[0], offset, length), content[1]
+        return content if not self.decode_offset else ((content[0], offset, length), content[1])
 
     def decode_content(self, data, offset, length):
         """
@@ -639,7 +639,7 @@ class PrimitiveOrConstructedType(Type):
             content = self.decode_primitive_contents(data, offset, length), end_offset
         else:
             content = self.decode_constructed_contents(data, offset, length)
-        return content if not self.decode_offset else (content[0], offset, length), content[1]
+        return content if not self.decode_offset else ((content[0], offset, length), content[1])
 
     def decode_constructed_contents(self, data, offset, length):
         segments = []
@@ -1413,7 +1413,7 @@ class Any(Type):
         length, offset = decode_length(data, offset)
         end_offset = offset + length
 
-        return data[start:end_offset], end_offset if not self.decode_offset else (data[start:end_offset], start, end_offset - start), end_offset
+        return data[start:end_offset], end_offset if not self.decode_offset else ((data[start:end_offset], start, end_offset - start), end_offset)
 
 
 class AnyDefinedBy(Type):
@@ -1458,7 +1458,7 @@ class AnyDefinedBy(Type):
             length, offset = decode_length(data, offset)
             end_offset = offset + length
 
-            return data[start:end_offset], end_offset if not self.decode_offset else (data[start:end_offset], start, end_offset - start), end_offset
+            return data[start:end_offset], end_offset if not self.decode_offset else ((data[start:end_offset], start, end_offset - start), end_offset)
 
 
 class ExplicitTag(StandardEncodeMixin, StandardDecodeMixin, Type):
