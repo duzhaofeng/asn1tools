@@ -737,7 +737,7 @@ class MembersType(StandardEncodeMixin, StandardDecodeMixin, Type):
             try:
                 if isinstance(member, AnyDefinedBy):
                     member.encode(value, encoded_members, data)
-                elif not member.is_default(value):
+                elif not member.is_default(value) or self.decode_offset:
                     member.encode(value, encoded_members)
             except ErrorWithLocation as e:
                 # Add member location
@@ -834,7 +834,7 @@ class MembersType(StandardEncodeMixin, StandardDecodeMixin, Type):
                 continue
 
             if member.has_default():
-                values[member.name] = member.get_default()
+                if not self.decode_offset: values[member.name] = member.get_default()
             elif ignore_missing:
                 break
             elif out_of_data:
