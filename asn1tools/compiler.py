@@ -66,6 +66,16 @@ class Specification(object):
 
                 self._types[type_name] = type_
 
+        for type_name in duplicated:
+            last_type = None
+            for module_name in modules:
+                types = modules[module_name]
+                if type_name in types:
+                    self._types[module_name + '.' + type_name] = types[type_name]
+                    last_type = types[type_name]
+            if last_type is not None:
+                self._types[type_name] = last_type
+
     @property
     def types(self):
         """A dictionary of all unique types in the specification. Types found

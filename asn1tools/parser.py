@@ -664,9 +664,10 @@ def convert_value(tokens, type_=None):
                         pass
                     elif value.startswith('0b'):
                         value = value[2:]
+                        number_of_bits = len(value)
                         if len(value) % 8 != 0:
                             value += '0' * (-len(value) % 8)
-                        return binascii.unhexlify(hex(int('11111111' + value, 2))[4:])
+                        return (binascii.unhexlify(hex(int('11111111' + value, 2))[4:]), number_of_bits)
                     elif value.startswith('0x'):
                         value = value[2:]
                         if len(value) % 2 == 1:
